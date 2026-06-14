@@ -12,9 +12,7 @@ export default function Dashboard({ family }) {
   const [deadlineIso, setDeadlineIso] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
@@ -23,13 +21,8 @@ export default function Dashboard({ family }) {
       supabase.from('dish_selections').select('*'),
       supabase.from('dishes').select('id, name, category, tags'),
       supabase.from('families').select('id, name'),
-      supabase
-        .from('app_settings')
-        .select('value')
-        .eq('key', 'deadline_iso')
-        .maybeSingle(),
+      supabase.from('app_settings').select('value').eq('key', 'deadline_iso').maybeSingle(),
     ])
-
     if (slotsRes.data) setSlots(slotsRes.data)
     if (selRes.data) setSelections(selRes.data)
     if (dishRes.data) {
@@ -47,22 +40,15 @@ export default function Dashboard({ family }) {
   function selectionsForSlot(slotId) {
     return selections.filter((s) => s.meal_slot_id === slotId)
   }
-
   function ownSelectionFor(slotId) {
-    return selections.find(
-      (s) => s.meal_slot_id === slotId && s.family_id === family.id
-    )
+    return selections.find((s) => s.meal_slot_id === slotId && s.family_id === family.id)
   }
-
   function familyName(fid) {
     return families.find((f) => f.id === fid)?.name || 'Tuntematon'
   }
-
   function dishName(did) {
     return dishes[did]?.name || 'Ruoka'
   }
-
-  // For each slot, group selections by dish
   function matchesForSlot(slotId) {
     const sels = selectionsForSlot(slotId).filter((s) => s.dish_id)
     const groups = {}
@@ -75,18 +61,13 @@ export default function Dashboard({ family }) {
       .map(([did, fams]) => ({ dishId: did, families: fams }))
   }
 
-  if (loading) {
-    return <div className="text-center py-12 text-leaf-600">Ladataan…</div>
-  }
+  if (loading) return <div className="text-center py-12 text-leaf-600">Ladataan…</div>
 
   return (
     <div className="space-y-6">
       <Countdown deadline={deadline} />
-
       <div>
-        <h2 className="font-display text-xl mb-3 text-leaf-800">
-          Ateriat
-        </h2>
+        <h2 className="font-display text-xl mb-3 text-leaf-800">Ateriat</h2>
         <div className="grid sm:grid-cols-2 gap-3">
           {slots.map((slot) => {
             const own = ownSelectionFor(slot.id)
@@ -99,16 +80,8 @@ export default function Dashboard({ family }) {
                 className="card p-4 hover:shadow-lift hover:-translate-y-0.5 transition"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <div>
-                    <div className="text-xs uppercase tracking-wider text-leaf-600">
-                      {slot.day === 'thu' && 'Torstai'}
-                      {slot.day === 'fri' && 'Perjantai'}
-                      {slot.day === 'sat' && 'Lauantai'}
-                      {slot.day === 'sun' && 'Sunnuntai'}
-                    </div>
-                    <div className="font-display font-semibold text-leaf-800">
-                      {slot.meal_type === 'lunch' ? 'Lounas' : 'Päivällinen'}
-                    </div>
+                  <div className="font-display font-semibold text-leaf-800">
+                    {slot.display_name}
                   </div>
                   {totalSelections > 0 && (
                     <span className="pill-leaf">
@@ -116,34 +89,23 @@ export default function Dashboard({ family }) {
                     </span>
                   )}
                 </div>
-
                 {own ? (
                   own.is_flexible ? (
-                    <div className="text-sm text-leaf-600 italic">
-                      🍃 Syöt mitä tarjolla on
-                    </div>
+                    <div className="text-sm text-leaf-600 italic">🍃 Syöt mitä tarjolla on</div>
                   ) : (
-                    <div className="text-sm font-medium text-leaf-800">
-                      ✓ {dishName(own.dish_id)}
-                    </div>
+                    <div className="text-sm font-medium text-leaf-800">✓ {dishName(own.dish_id)}</div>
                   )
                 ) : (
                   <div className="text-sm text-leaf-400">Ei valintaa vielä</div>
                 )}
-
                 {matches.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-birch-100">
                     {matches.map((m) => (
-                      <div
-                        key={m.dishId}
-                        className="text-xs text-leaf-600 flex items-center gap-1.5"
-                      >
+                      <div key={m.dishId} className="text-xs text-leaf-600 flex items-center gap-1.5">
                         <span className="text-sun-600">🤝</span>
                         <span className="font-medium">{dishName(m.dishId)}</span>
                         <span>·</span>
-                        <span>
-                          {m.families.map(familyName).join(', ')}
-                        </span>
+                        <span>{m.families.map(familyName).join(', ')}</span>
                       </div>
                     ))}
                   </div>
