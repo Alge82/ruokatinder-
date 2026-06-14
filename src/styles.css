@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-birch-50 text-leaf-800 font-sans antialiased;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(244, 201, 93, 0.10) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(143, 170, 122, 0.10) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(107, 155, 210, 0.08) 0px, transparent 50%);
+    min-height: 100dvh;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 font-medium text-sm transition active:scale-[0.98];
+  }
+  .btn-primary {
+    @apply btn bg-leaf-600 text-birch-50 hover:bg-leaf-800 shadow-soft;
+  }
+  .btn-secondary {
+    @apply btn bg-birch-100 text-leaf-800 hover:bg-birch-200;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-leaf-600 hover:bg-birch-100;
+  }
+  .card {
+    @apply bg-white rounded-3xl shadow-soft border border-birch-100;
+  }
+  .field {
+    @apply w-full rounded-xl border border-birch-200 bg-white px-4 py-3 text-base text-leaf-800
+           placeholder:text-leaf-400 focus:outline-none focus:border-leaf-400 focus:ring-2 focus:ring-leaf-200;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium;
+  }
+  .pill-leaf { @apply pill bg-leaf-50 text-leaf-800; }
+  .pill-sun { @apply pill bg-sun-200 text-sun-600; }
+  .pill-sky { @apply pill bg-sky-soft/40 text-sky-deep; }
+  .pill-berry { @apply pill bg-berry-400/15 text-berry-600; }
+}
+
+/* Subtle birch texture overlay */
+.birch-grain {
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(143, 170, 122, 0.02) 0px,
+    rgba(143, 170, 122, 0.02) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
