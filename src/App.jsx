@@ -2,48 +2,50 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import Layout from './components/Layout'
-import Login from './pages/Login'
-import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
 import MealPicker from './pages/MealPicker'
 import Pool from './pages/Pool'
 import Breakfast from './pages/Breakfast'
 import Summary from './pages/Summary'
 import FamilyEdit from './pages/FamilyEdit'
+import NameLogin from './pages/NameLogin'
 
 export default function App() {
-  const [session, setSession] = useState(null)
   const [family, setFamily] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-    })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => {
-      setSession(sess)
-    })
-    return () => sub.subscription.unsubscribe()
+    const savedId = localStorage.getItem('ruokatinder_family_id')
+    if (savedId) {
+      loadFamily(savedId)
+    } else {
+      setLoading(false)
+    }
   }, [])
 
-  useEffect(() => {
-    if (!session) {
-      setFamily(null)
-      setLoading(false)
-      return
-    }
-    loadFamily()
-  }, [session])
-
-  async function loadFamily() {
+  async function loadFamily(id) {
     setLoading(true)
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('families')
       .select('*')
-      .eq('auth_user_id', session.user.id)
+      .eq('id', id)
       .maybeSingle()
-    if (!error) setFamily(data)
+    if (data) {
+      setFamily(data)
+    } else {
+      localStorage.removeItem('ruokatinder_family_id')
+    }
     setLoading(false)
+  }
+
+  function handleLogin(familyData) {
+    localStorage.setItem('ruokatinder_family_id', familyData.id)
+    setFamily(familyData)
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('ruokatinder_family_id')
+    setFamily(null)
   }
 
   if (loading) {
@@ -54,20 +56,12 @@ export default function App() {
     )
   }
 
-  if (!session) {
-    return (
-      <Routes>
-        <Route path="*" element={<Login />} />
-      </Routes>
-    )
-  }
-
   if (!family) {
-    return <Onboarding session={session} onComplete={loadFamily} />
+    return <NameLogin onLogin={handleLogin} />
   }
 
   return (
-    <Layout family={family}>
+    <Layout family={family} onLogout={handleLogout}>
       <Routes>
         <Route path="/" element={<Dashboard family={family} />} />
         <Route path="/ateria/:slotId" element={<MealPicker family={family} />} />
@@ -76,7 +70,7 @@ export default function App() {
         <Route path="/yhteenveto" element={<Summary family={family} />} />
         <Route
           path="/perhe"
-          element={<FamilyEdit family={family} onUpdate={loadFamily} />}
+          element={<FamilyEdit family={family} onUpdate={(f) => setFamily(f)} />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
