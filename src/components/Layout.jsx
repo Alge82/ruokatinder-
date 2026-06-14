@@ -27,7 +27,7 @@ export default function Layout({ family, children }) {
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-display font-semibold text-leaf-800">
-              Ruokatinder
+              Grillinder
             </h1>
             <div className="text-xs text-leaf-600 mt-0.5">
               {family?.name ? `Hei, ${family.name}!` : 'Juhannus 2026'}
