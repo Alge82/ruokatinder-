@@ -16,31 +16,17 @@ export default function Pool({ family }) {
   const [deadlineIso, setDeadlineIso] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeCategory, setActiveCategory] = useState('lisuke')
-  const [editingId, setEditingId] = useState(null)
-  const [editNote, setEditNote] = useState('')
-  const [editSlot, setEditSlot] = useState('')
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
     const [dishRes, conRes, famRes, slotRes, settings] = await Promise.all([
-      supabase
-        .from('dishes')
-        .select('*')
-        .eq('is_active', true)
-        .eq('is_pool_item', true)
-        .order('name'),
+      supabase.from('dishes').select('*').eq('is_active', true).eq('is_pool_item', true).order('name'),
       supabase.from('pool_contributions').select('*'),
       supabase.from('families').select('id, name'),
       supabase.from('meal_slots').select('*').order('sort_order'),
-      supabase
-        .from('app_settings')
-        .select('value')
-        .eq('key', 'deadline_iso')
-        .maybeSingle(),
+      supabase.from('app_settings').select('value').eq('key', 'deadline_iso').maybeSingle(),
     ])
     setDishes(dishRes.data || [])
     setContributions(conRes.data || [])
@@ -56,60 +42,45 @@ export default function Pool({ family }) {
   function familyName(id) {
     return families.find((f) => f.id === id)?.name || 'Tuntematon'
   }
-  function slotName(id) {
-    return slots.find((s) => s.id === id)?.display_name || 'milloin sopii'
-  }
-
-  const dishesInCategory = useMemo(
-    () => dishes.filter((d) => d.category === activeCategory),
-    [dishes, activeCategory]
-  )
 
   function contributionsFor(dishId) {
     return contributions.filter((c) => c.dish_id === dishId)
   }
 
   function ownContribution(dishId) {
-    return contributions.find(
-      (c) => c.dish_id === dishId && c.family_id === family.id
-    )
+    return contributions.find((c) => c.dish_id === dishId && c.family_id === family.id)
   }
 
-  async function addContribution(dishId) {
+  // mode: 'bringing' | 'joining' | null (poista)
+  async function setMode(dishId, mode) {
     if (isLocked) return
-    const { error } = await supabase.from('pool_contributions').insert({
-      family_id: family.id,
-      dish_id: dishId,
-    })
-    if (!error) await load()
-  }
+    const existing = ownContribution(dishId)
 
-  async function removeContribution(id) {
-    if (isLocked) return
-    await supabase.from('pool_contributions').delete().eq('id', id)
-    await load()
-  }
-
-  function startEdit(c) {
-    setEditingId(c.id)
-    setEditNote(c.quantity_note || '')
-    setEditSlot(c.preferred_slot_id || '')
-  }
-
-  async function saveEdit() {
-    if (!editingId) return
-    await supabase
-      .from('pool_contributions')
-      .update({
-        quantity_note: editNote.trim() || null,
-        preferred_slot_id: editSlot || null,
+    if (existing) {
+      if (
+        (mode === 'bringing' && !existing.joining) ||
+        (mode === 'joining' && existing.joining)
+      ) {
+        // Toggle off — sama nappi uudelleen
+        await supabase.from('pool_contributions').delete().eq('id', existing.id)
+      } else {
+        // Vaihda moodia
+        await supabase.from('pool_contributions').update({ joining: mode === 'joining' }).eq('id', existing.id)
+      }
+    } else {
+      await supabase.from('pool_contributions').insert({
+        family_id: family.id,
+        dish_id: dishId,
+        joining: mode === 'joining',
       })
-      .eq('id', editingId)
-    setEditingId(null)
-    setEditNote('')
-    setEditSlot('')
+    }
     await load()
   }
+
+  const dishesInCategory = useMemo(
+    () => dishes.filter((d) => d.category === activeCategory),
+    [dishes, activeCategory]
+  )
 
   if (loading) return <div className="text-center py-12">Ladataan…</div>
 
@@ -118,32 +89,24 @@ export default function Pool({ family }) {
       <header>
         <h1 className="font-display text-2xl text-leaf-800">Lisukepooli</h1>
         <p className="text-sm text-leaf-600 mt-1">
-          Lisukkeet, salaatit ja jälkkärit eivät kuulu yhdelle aterialle —
-          merkitse mitä tuotte, niin tarjoillaan kun sopii. Voit halutessasi
-          ehdottaa päivää.
+          Ilmoita tuotko jotain vai tuletko vain mukaan syömään.
         </p>
       </header>
 
       {isLocked && (
         <div className="card p-4 bg-berry-400/10 border-berry-400/30 text-sm text-berry-600">
-          Valinta-aika on päättynyt. Muutoksia ei voi enää tehdä.
+          Valinta-aika on päättynyt.
         </div>
       )}
 
-      {/* Category tabs */}
       <div className="flex gap-1 bg-white/60 p-1 rounded-full border border-birch-100 overflow-x-auto">
         {Object.entries(CATEGORY_LABELS).map(([key, { label, icon }]) => (
-          <button
-            key={key}
-            onClick={() => setActiveCategory(key)}
+          <button key={key} onClick={() => setActiveCategory(key)}
             className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition ${
-              activeCategory === key
-                ? 'bg-leaf-600 text-birch-50'
-                : 'text-leaf-800 hover:bg-birch-100'
+              activeCategory === key ? 'bg-leaf-600 text-birch-50' : 'text-leaf-800 hover:bg-birch-100'
             }`}
           >
-            <span className="mr-1">{icon}</span>
-            {label}
+            <span className="mr-1">{icon}</span>{label}
           </button>
         ))}
       </div>
@@ -152,120 +115,69 @@ export default function Pool({ family }) {
         {dishesInCategory.map((dish) => {
           const items = contributionsFor(dish.id)
           const mine = ownContribution(dish.id)
+          const isBringing = mine && !mine.joining
+          const isJoining = mine && mine.joining
+          const bringers = items.filter((c) => !c.joining)
+          const joiners = items.filter((c) => c.joining)
+
           return (
             <section key={dish.id} className="card p-4">
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="flex-1">
-                  <h3 className="font-display font-semibold text-leaf-800">
-                    {dish.name}
-                  </h3>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <h3 className="font-display font-semibold text-leaf-800">{dish.name}</h3>
                   {dish.description && (
-                    <p className="text-sm text-leaf-600 mt-0.5">
-                      {dish.description}
-                    </p>
-                  )}
-                  {dish.tags?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {dish.tags.map((t) => (
-                        <span key={t} className="pill-sky">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
+                    <p className="text-sm text-leaf-600 mt-0.5">{dish.description}</p>
                   )}
                 </div>
                 {items.length > 0 && (
-                  <span className="pill-sun shrink-0">
-                    {items.length} {items.length === 1 ? 'tuoja' : 'tuojaa'}
-                  </span>
+                  <span className="pill-sun shrink-0">{items.length} mukana</span>
                 )}
               </div>
 
-              {items.length > 0 && (
-                <ul className="space-y-1.5 my-3">
-                  {items.map((c) => (
-                    <li
-                      key={c.id}
-                      className="flex items-center justify-between gap-2 bg-birch-50 rounded-lg px-3 py-2 text-sm"
-                    >
-                      <div className="flex-1">
-                        <span className="font-medium">
-                          {familyName(c.family_id)}
-                        </span>
-                        {c.quantity_note && (
-                          <span className="text-leaf-600 ml-2">
-                            · {c.quantity_note}
-                          </span>
-                        )}
-                        {c.preferred_slot_id && (
-                          <span className="text-leaf-600 ml-2">
-                            · ehdottaa: {slotName(c.preferred_slot_id)}
-                          </span>
-                        )}
-                      </div>
-                      {c.family_id === family.id && !isLocked && (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => startEdit(c)}
-                            className="text-leaf-600 text-xs hover:underline"
-                          >
-                            Muokkaa
-                          </button>
-                          <span className="text-leaf-400">·</span>
-                          <button
-                            onClick={() => removeContribution(c.id)}
-                            className="text-berry-600 text-xs hover:underline"
-                          >
-                            Poista
-                          </button>
-                        </div>
-                      )}
-                    </li>
+              {/* Kuka tuo / tulee mukaan */}
+              {(bringers.length > 0 || joiners.length > 0) && (
+                <div className="space-y-1.5 mb-3">
+                  {bringers.map((c) => (
+                    <div key={c.id} className="flex items-center gap-2 bg-leaf-50 rounded-lg px-3 py-1.5 text-sm">
+                      <span>🧺</span>
+                      <span className="font-medium">{familyName(c.family_id)}</span>
+                      <span className="text-leaf-600 text-xs">tuo</span>
+                    </div>
                   ))}
-                </ul>
-              )}
-
-              {editingId && items.some((c) => c.id === editingId) && (
-                <div className="bg-birch-50 rounded-xl p-3 space-y-2 my-2">
-                  <input
-                    className="field"
-                    placeholder="Määrä / kommentti (esim. iso satsi)"
-                    value={editNote}
-                    onChange={(e) => setEditNote(e.target.value)}
-                  />
-                  <select
-                    className="field"
-                    value={editSlot}
-                    onChange={(e) => setEditSlot(e.target.value)}
-                  >
-                    <option value="">Ei päivätoivetta</option>
-                    {slots.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.display_name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex gap-2">
-                    <button onClick={saveEdit} className="btn-primary text-sm">
-                      Tallenna
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="btn-ghost text-sm"
-                    >
-                      Peruuta
-                    </button>
-                  </div>
+                  {joiners.map((c) => (
+                    <div key={c.id} className="flex items-center gap-2 bg-birch-50 rounded-lg px-3 py-1.5 text-sm">
+                      <span>🍽️</span>
+                      <span className="font-medium">{familyName(c.family_id)}</span>
+                      <span className="text-leaf-600 text-xs">tulee mukaan</span>
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {!mine && !isLocked && (
-                <button
-                  onClick={() => addContribution(dish.id)}
-                  className="btn-secondary text-sm w-full mt-2"
-                >
-                  + Me tuomme tämän
-                </button>
+              {/* Napit */}
+              {!isLocked && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setMode(dish.id, 'bringing')}
+                    className={`flex-1 text-sm py-2 rounded-xl font-medium transition ${
+                      isBringing
+                        ? 'bg-leaf-600 text-birch-50'
+                        : 'bg-birch-50 text-leaf-800 border border-birch-200 hover:bg-leaf-50'
+                    }`}
+                  >
+                    {isBringing ? '✓ ' : ''}🧺 Me tuomme
+                  </button>
+                  <button
+                    onClick={() => setMode(dish.id, 'joining')}
+                    className={`flex-1 text-sm py-2 rounded-xl font-medium transition ${
+                      isJoining
+                        ? 'bg-sun-400 text-leaf-900'
+                        : 'bg-birch-50 text-leaf-800 border border-birch-200 hover:bg-sun-200/50'
+                    }`}
+                  >
+                    {isJoining ? '✓ ' : ''}🍽️ Tulen mukaan
+                  </button>
+                </div>
               )}
             </section>
           )
