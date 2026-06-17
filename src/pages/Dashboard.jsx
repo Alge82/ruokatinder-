@@ -67,15 +67,20 @@ export default function Dashboard({ family }) {
     return dishes[did]?.name || 'Ruoka'
   }
 
-  function matchesForSlot(slotId) {
-    const sels = selectionsForSlot(slotId).filter((s) => s.dish_id)
+ function matchesForSlot(slotId) {
+    const ownDishIds = selections
+      .filter((s) => s.family_id === family.id && s.meal_slot_id === slotId && s.dish_id)
+      .map((s) => s.dish_id)
+
     const groups = {}
-    sels.forEach((s) => {
-      if (!groups[s.dish_id]) groups[s.dish_id] = []
-      groups[s.dish_id].push(s.family_id)
-    })
+    selections
+      .filter((s) => s.dish_id && ownDishIds.includes(s.dish_id) && s.family_id !== family.id)
+      .forEach((s) => {
+        if (!groups[s.dish_id]) groups[s.dish_id] = []
+        if (!groups[s.dish_id].includes(s.family_id)) groups[s.dish_id].push(s.family_id)
+      })
+
     return Object.entries(groups)
-      .filter(([_, fams]) => fams.length > 1)
       .map(([did, fams]) => ({ dishId: did, families: fams }))
   }
 
