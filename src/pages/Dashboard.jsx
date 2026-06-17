@@ -35,20 +35,38 @@ export default function Dashboard({ family }) {
     setLoading(false)
   }
 
+  async function closeVoting() {
+    const now = new Date().toISOString()
+    await supabase.from('app_settings').update({ value: now }).eq('key', 'deadline_iso')
+    await load()
+  }
+
   const deadline = parseDeadline(deadlineIso)
 
   function selectionsForSlot(slotId) {
     return selections.filter((s) => s.meal_slot_id === slotId)
   }
-  function ownSelectionFor(slotId) {
-    return selections.find((s) => s.meal_slot_id === slotId && s.family_id === family.id)
+
+  function ownSelectionsFor(slotId) {
+    return selections.filter(
+      (s) => s.meal_slot_id === slotId && s.family_id === family.id && !s.is_flexible
+    )
   }
+
+  function isFlexibleFor(slotId) {
+    return selections.some(
+      (s) => s.meal_slot_id === slotId && s.family_id === family.id && s.is_flexible
+    )
+  }
+
   function familyName(fid) {
     return families.find((f) => f.id === fid)?.name || 'Tuntematon'
   }
+
   function dishName(did) {
     return dishes[did]?.name || 'Ruoka'
   }
+
   function matchesForSlot(slotId) {
     const sels = selectionsForSlot(slotId).filter((s) => s.dish_id)
     const groups = {}
@@ -66,11 +84,17 @@ export default function Dashboard({ family }) {
   return (
     <div className="space-y-6">
       <Countdown deadline={deadline} />
+
+      <button onClick={closeVoting} className="btn-secondary text-sm w-full">
+        🔒 Sulje äänestys nyt
+      </button>
+
       <div>
         <h2 className="font-display text-xl mb-3 text-leaf-800">Ateriat</h2>
         <div className="grid sm:grid-cols-2 gap-3">
           {slots.map((slot) => {
-            const own = ownSelectionFor(slot.id)
+            const own = ownSelectionsFor(slot.id)
+            const flexible = isFlexibleFor(slot.id)
             const matches = matchesForSlot(slot.id)
             const totalSelections = selectionsForSlot(slot.id).length
             return (
@@ -89,15 +113,22 @@ export default function Dashboard({ family }) {
                     </span>
                   )}
                 </div>
-                {own ? (
-                  own.is_flexible ? (
-                    <div className="text-sm text-leaf-600 italic">🍃 Syöt mitä tarjolla on</div>
-                  ) : (
-                    <div className="text-sm font-medium text-leaf-800">✓ {dishName(own.dish_id)}</div>
-                  )
-                ) : (
-                  <div className="text-sm text-leaf-400">Ei valintaa vielä</div>
+
+                {flexible && (
+                  <div className="text-sm text-leaf-600 italic mb-1">🍃 Syötte mitä tarjolla on</div>
                 )}
+                {own.length > 0 ? (
+                  <div className="space-y-0.5">
+                    {own.map((s) => (
+                      <div key={s.id} className="text-sm font-medium text-leaf-800">
+                        ✓ {dishName(s.dish_id)}
+                      </div>
+                    ))}
+                  </div>
+                ) : !flexible ? (
+                  <div className="text-sm text-leaf-400">Ei valintaa vielä</div>
+                ) : null}
+
                 {matches.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-birch-100">
                     {matches.map((m) => (
