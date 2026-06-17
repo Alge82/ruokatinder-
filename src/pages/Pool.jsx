@@ -110,7 +110,9 @@ export default function Pool({ family }) {
           </button>
         ))}
       </div>
-
+      {!isLocked && (
+        <AddCustomPool family={family} activeCategory={activeCategory} onAdded={load} />
+      )}
       <div className="space-y-3">
         {dishesInCategory.map((dish) => {
           const items = contributionsFor(dish.id)
@@ -185,4 +187,46 @@ export default function Pool({ family }) {
       </div>
     </div>
   )
+function AddCustomPool({ family, activeCategory, onAdded }) {
+  const [name, setName] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function add() {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setSaving(true)
+    const { data, error } = await supabase.from('dishes').insert({
+      name: trimmed,
+      is_active: true,
+      is_pool_item: true,
+      category: activeCategory,
+      tags: [],
+      suggested_ingredients: [],
+    }).select().single()
+    if (!error && data) {
+      await supabase.from('pool_contributions').insert({
+        family_id: family.id,
+        dish_id: data.id,
+        joining: false,
+      })
+    }
+    setName('')
+    setSaving(false)
+    if (onAdded) await onAdded()
+  }
+
+  return (
+    <div className="card p-4 space-y-2">
+      <div className="text-xs uppercase tracking-wider text-leaf-600">Lisää oma</div>
+      <div className="flex gap-2">
+        <input className="field flex-1" placeholder="esim. Tzatziki"
+          value={name} onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <button onClick={add} disabled={saving || !name.trim()} className="btn-primary">
+          {saving ? '…' : 'Lisää'}
+        </button>
+      </div>
+    </div>
+  )
+}
 }
